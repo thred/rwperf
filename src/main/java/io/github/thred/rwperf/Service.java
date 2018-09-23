@@ -16,14 +16,14 @@ public class Service
 
     private static final int BUFFER_SIZE = 4096;
 
-    private final Consumer consumer;
+    private final ResultConsumer consumer;
     private final Pool pool;
     private final List<File> paths;
 
     private final List<Runnable> reads = new ArrayList<>();
     private final List<Runnable> deletes = new ArrayList<>();
 
-    public Service(Consumer consumer, List<File> paths, int threads)
+    public Service(ResultConsumer consumer, List<File> paths, int threads)
     {
         super();
 
@@ -34,13 +34,13 @@ public class Service
         this.paths = paths;
     }
 
-    public void prepare(long size, long maxSize, long seed, boolean delete)
+    public void prepare(long size, long minSize, long maxSize, long seed, boolean delete)
     {
         Random random = new Random(seed);
 
         while (size > 0)
         {
-            size = prepareWrite(random, size, maxSize);
+            size = prepareWrite(random, size, minSize, maxSize);
         }
 
         for (Runnable runnable : reads)
@@ -62,14 +62,27 @@ public class Service
         pool.shutdown();
     }
 
-    private long prepareWrite(Random random, long remainingSize, long maxSize)
+    private long prepareWrite(Random random, long remainingSize, long minSize, long maxSize)
     {
         maxSize = Math.min(remainingSize, maxSize);
 
+        if (maxSize < minSize)
+        {
+            return 0;
+        }
+
         File path = paths.get(random.nextInt(paths.size()));
-        long size = Math.max(Math.min((long) Math.pow(random.nextDouble() * Math.sqrt(maxSize), 2), maxSize), 1);
-        long seed = random.nextLong();
-        File file = new File(path, "rwperf#" + seed + ".dat");
+
+        int distance = (int) (maxSize - minSize);
+
+        if (distance > 0)
+        {
+            distance = random.nextInt((int) (maxSize - minSize));
+        }
+
+        long size = minSize + distance;
+        long seed = Math.abs(random.nextLong());
+        File file = new File(path, String.format("rwperf#%16s.dat", Long.toHexString(seed)).replace(' ', '0'));
 
         pool.execute(() -> write(file, seed, (int) size));
 
@@ -111,7 +124,7 @@ public class Service
         double duration = stopwatch.stop();
         String checksumValue = checksum.complete();
 
-        consumer.consume(new Result(file, Operation.Write, size, checksumValue, duration, success));
+        consumer.consume(new Result(file.getName(), Operation.Write, size, checksumValue, duration, success));
     }
 
     private void read(File file)
@@ -141,7 +154,7 @@ public class Service
         double duration = stopwatch.stop();
         String checksumValue = checksum.complete();
 
-        consumer.consume(new Result(file, Operation.Read, size, checksumValue, duration, success));
+        consumer.consume(new Result(file.getName(), Operation.Read, size, checksumValue, duration, success));
     }
 
     private void delete(File file)
@@ -151,7 +164,7 @@ public class Service
         boolean success = file.delete();
         double duration = stopwatch.stop();
 
-        consumer.consume(new Result(file, Operation.Delete, size, "checksum", duration, success));
+        consumer.consume(new Result(file.getName(), Operation.Delete, size, "checksum", duration, success));
     }
 
 }

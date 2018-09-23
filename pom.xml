@@ -56,10 +56,10 @@
 					<archive>
 						<manifest>
 							<addClasspath>true</addClasspath>
-							<mainClass>io.github.thred.piconup.PiconUp</mainClass>
+							<mainClass>io.github.thred.rwperf.RWPerf</mainClass>
 						</manifest>
 					</archive>
-					<finalName>piconup</finalName>
+					<finalName>rwperf</finalName>
 					<outputDirectory>bin</outputDirectory>
 					<appendAssemblyId>false</appendAssemblyId>
 					<descriptorRefs>
